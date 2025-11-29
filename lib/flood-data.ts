@@ -478,141 +478,293 @@ export async function fetchBasinPolygons(): Promise<ArcGISFeature[]> {
   return allFeatures
 }
 
-/**
- * Check if a point is inside a polygon using ray casting algorithm
- */
-function pointInPolygon(point: [number, number], polygon: number[][]): boolean {
-  const [x, y] = point
-  let inside = false
+// =============================================================================
+// Static Data Types (from reference data)
+// =============================================================================
 
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i][0], yi = polygon[i][1]
-    const xj = polygon[j][0], yj = polygon[j][1]
-
-    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
-      inside = !inside
-    }
-  }
-
-  return inside
-}
-
-/**
- * Check if any point of a line is inside a polygon
- */
-function lineIntersectsPolygon(line: number[][], polygon: number[][]): boolean {
-  // Check if any point of the line is inside the polygon
-  for (const point of line) {
-    if (pointInPolygon([point[0], point[1]], polygon)) {
-      return true
-    }
-  }
-  return false
-}
-
-export interface BasinWithStatus {
+interface StaticRiver {
   name: string
-  status: FloodStatus
-  stationCount: number
-  floodingStations: string[]
+  river_basin_name: string
+  location_names: string[]
 }
 
-interface BasinPolygon {
+interface StaticLocation {
+  name: string
+  lat_lng: number[]
+}
+
+interface StaticGaugingStation {
+  name: string
+  river_name: string
+  lat_lng: number[]
+  alert_level: number
+  minor_flood_level: number
+  major_flood_level: number
+}
+
+// Import static data
+import riversData from '@/data/rivers.json'
+import locationsData from '@/data/locations.json'
+import gaugingStationsData from '@/data/gauging_stations.json'
+import stationRiversData from '@/data/station_rivers.json'
+
+const STATIC_RIVERS = riversData as StaticRiver[]
+const STATIC_LOCATIONS = locationsData as StaticLocation[]
+const STATIC_GAUGING_STATIONS = gaugingStationsData as StaticGaugingStation[]
+
+// Station-based river lines (paths connecting gauging stations)
+interface StationRiverFeature {
+  type: 'Feature'
+  properties: { name: string; basin: string; stations: string[] }
+  geometry: { type: 'LineString'; coordinates: number[][] }
+}
+const STATION_RIVERS = stationRiversData as { type: 'FeatureCollection'; features: StationRiverFeature[] }
+
+// Build lookup maps
+const locationByName = new Map<string, StaticLocation>()
+for (const loc of STATIC_LOCATIONS) {
+  locationByName.set(loc.name, loc)
+}
+
+const gaugingStationByName = new Map<string, StaticGaugingStation>()
+for (const station of STATIC_GAUGING_STATIONS) {
+  gaugingStationByName.set(station.name, station)
+}
+
+/**
+ * Get coordinates for a location name (station or regular location)
+ * Returns [lat, lng] tuple
+ */
+function getLocationCoords(name: string): [number, number] | null {
+  // Try gauging station first
+  const station = gaugingStationByName.get(name)
+  if (station && station.lat_lng.length >= 2) {
+    return [station.lat_lng[0], station.lat_lng[1]]
+  }
+  // Then try regular location
+  const location = locationByName.get(name)
+  if (location && location.lat_lng.length >= 2) {
+    return [location.lat_lng[0], location.lat_lng[1]]
+  }
+  return null
+}
+
+export interface RiverSegment {
+  riverName: string
+  basinName: string
+  from: string
+  to: string
+  fromCoords: [number, number]
+  toCoords: [number, number]
+  status: FloodStatus
+}
+
+interface BasinGeometry {
   name: string
   status: FloodStatus
   rings: number[][][]
 }
 
 /**
- * Get rivers within flooded basins as GeoJSON, colored by flood severity
- * Only returns river segments that fall within basins with MAJOR_FLOOD or MINOR_FLOOD status
+ * Fetch rivers that intersect with a given basin polygon using ArcGIS spatial query
+ * Uses POST to avoid URL length limits with large polygon geometries
+ *
+ * @param basinGeometry - The basin polygon to query
+ * @param simplified - If true, only fetch longer river segments and simplify geometry
  */
-export async function getFloodedRiversGeoJSON(): Promise<{
+async function fetchRiversInBasin(
+  basinGeometry: BasinGeometry,
+  simplified: boolean = false
+): Promise<ArcGISFeature[]> {
+  // Build geometry parameter for spatial query
+  const geometryParam = JSON.stringify({
+    rings: basinGeometry.rings,
+    spatialReference: { wkid: 4326 }
+  })
+
+  // For simplified view: filter to segments > 0.15 degrees (~15km) and generalize geometry
+  // Shape_Leng is in degrees, not meters - keeps only major river channels
+  const whereClause = simplified ? 'Shape_Leng > 0.15' : '1=1'
+
+  const bodyParams: Record<string, string> = {
+    f: 'json',
+    where: whereClause,
+    geometry: geometryParam,
+    geometryType: 'esriGeometryPolygon',
+    spatialRel: 'esriSpatialRelIntersects',
+    inSR: '4326',
+    outSR: '4326',
+    outFields: 'FID,Shape_Leng',
+    returnGeometry: 'true',
+  }
+
+  // Add geometry simplification for zoomed-out view
+  // maxAllowableOffset in degrees (~0.005 ≈ 500m simplification)
+  if (simplified) {
+    bodyParams.maxAllowableOffset = '0.005'
+    bodyParams.geometryPrecision = '5' // 5 decimal places
+  }
+
+  const body = new URLSearchParams(bodyParams)
+
+  const res = await fetch(ENDPOINTS.rivers, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: body.toString(),
+    next: { revalidate: 1800 }, // Cache for 30 min
+  })
+
+  if (!res.ok) {
+    console.error(`Failed to fetch rivers for basin ${basinGeometry.name}: ${res.status}`)
+    return []
+  }
+
+  const data: ArcGISResponse = await res.json()
+  return data.features ?? []
+}
+
+/**
+ * Get rivers in flooded basins as GeoJSON
+ * - simplified=true: Uses OSM main river data (proper named rivers)
+ * - simplified=false: Uses ArcGIS spatial queries for detailed tributaries
+ *
+ * @param simplified - If true, return OSM main rivers; if false, return detailed ArcGIS rivers
+ */
+export async function getFloodedRiversGeoJSON(simplified: boolean = false): Promise<{
   geojson: GeoJSONFeatureCollection
-  basinStatuses: Record<string, BasinWithStatus>
+  segments: RiverSegment[]
 }> {
-  // Fetch stations, basins, and rivers in parallel
-  const [stations, basinFeatures, riverFeatures] = await Promise.all([
-    getAllStations(),
-    fetchBasinPolygons(),
-    fetchRivers(),
-  ])
+  // Fetch stations to determine flooded basins
+  const stations = await getAllStations()
 
   // Group stations by basin and find worst status per basin
-  const basinStatuses: Record<string, BasinWithStatus> = {}
+  const basinStatuses = new Map<string, { status: FloodStatus; stations: string[] }>()
 
   for (const station of stations) {
     const basin = station.basin.trim()
     if (!basin) continue
 
-    if (!basinStatuses[basin]) {
-      basinStatuses[basin] = {
-        name: basin,
+    const existing = basinStatuses.get(basin)
+    if (!existing) {
+      basinStatuses.set(basin, {
         status: station.status,
-        stationCount: 1,
-        floodingStations: [],
-      }
+        stations: station.status === 'MAJOR_FLOOD' || station.status === 'MINOR_FLOOD'
+          ? [station.name] : [],
+      })
     } else {
-      basinStatuses[basin].stationCount++
-      // Update to worse status if applicable
-      if (STATUS_PRIORITY[station.status] < STATUS_PRIORITY[basinStatuses[basin].status]) {
-        basinStatuses[basin].status = station.status
+      if (STATUS_PRIORITY[station.status] < STATUS_PRIORITY[existing.status]) {
+        existing.status = station.status
       }
-    }
-
-    // Track flooding stations
-    if (station.status === 'MAJOR_FLOOD' || station.status === 'MINOR_FLOOD') {
-      basinStatuses[basin].floodingStations.push(station.name)
+      if (station.status === 'MAJOR_FLOOD' || station.status === 'MINOR_FLOOD') {
+        existing.stations.push(station.name)
+      }
     }
   }
 
-  // Get flooded basin polygons with their status
-  const floodedBasins: BasinPolygon[] = []
+  // Get flooded basins (MAJOR_FLOOD or MINOR_FLOOD)
+  const floodedBasinNames = new Set<string>()
+  const floodedBasinStatuses = new Map<string, FloodStatus>()
+
+  for (const [name, info] of basinStatuses) {
+    if (info.status === 'MAJOR_FLOOD' || info.status === 'MINOR_FLOOD') {
+      floodedBasinNames.add(name)
+      floodedBasinStatuses.set(name, info.status)
+    }
+  }
+
+  const geoJsonFeatures: GeoJSONFeature[] = []
+  const segments: RiverSegment[] = []
+
+  // For simplified view: use station-based river paths
+  // These lines pass through the actual gauging stations for perfect alignment
+  if (simplified) {
+    for (const feature of STATION_RIVERS.features) {
+      const basin = feature.properties.basin
+      if (!floodedBasinNames.has(basin)) continue
+
+      const status = floodedBasinStatuses.get(basin) || 'UNKNOWN'
+
+      geoJsonFeatures.push({
+        type: 'Feature',
+        properties: {
+          name: feature.properties.name,
+          basin: basin,
+          status: status,
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: feature.geometry.coordinates,
+        },
+      })
+    }
+
+    return {
+      geojson: { type: 'FeatureCollection', features: geoJsonFeatures },
+      segments,
+    }
+  }
+
+  // For detailed view: use ArcGIS spatial queries
+  const basinFeatures = await fetchBasinPolygons()
+
+  // Get flooded basin geometries
+  const floodedBasins: BasinGeometry[] = []
 
   for (const f of basinFeatures) {
     const name = (f.attributes?.Name as string)?.trim()
     if (!name) continue
 
-    const basinInfo = basinStatuses[name]
-    if (!basinInfo || (basinInfo.status !== 'MAJOR_FLOOD' && basinInfo.status !== 'MINOR_FLOOD')) {
-      continue
-    }
+    if (!floodedBasinNames.has(name)) continue
 
     const geom = f.geometry as { rings?: number[][][] }
     const rings = geom?.rings ?? []
     if (rings.length > 0) {
       floodedBasins.push({
         name,
-        status: basinInfo.status,
+        status: floodedBasinStatuses.get(name) || 'UNKNOWN',
         rings,
       })
     }
   }
 
-  // Find rivers that intersect flooded basins
-  const geoJsonFeatures: GeoJSONFeature[] = []
+  // Fetch rivers for each flooded basin using spatial queries
+  const riverPromises = floodedBasins.map(async (basin) => {
+    const rivers = await fetchRiversInBasin(basin, false)
+    return { basin, rivers }
+  })
 
-  for (const river of riverFeatures) {
-    const paths = river.geometry?.paths ?? []
+  const results = await Promise.all(riverPromises)
 
-    for (const path of paths) {
-      // Check which flooded basin this river segment falls into
-      for (const basin of floodedBasins) {
-        for (const ring of basin.rings) {
-          if (lineIntersectsPolygon(path, ring)) {
-            geoJsonFeatures.push({
-              type: 'Feature',
-              properties: {
-                basin: basin.name,
-                status: basin.status,
-              },
-              geometry: {
-                type: 'LineString',
-                coordinates: path,
-              },
-            })
-            break // Found a match, no need to check other rings
-          }
+  for (const { basin, rivers } of results) {
+    for (const river of rivers) {
+      const paths = river.geometry?.paths ?? []
+
+      for (const path of paths) {
+        geoJsonFeatures.push({
+          type: 'Feature',
+          properties: {
+            basin: basin.name,
+            status: basin.status,
+          },
+          geometry: {
+            type: 'LineString',
+            coordinates: path,
+          },
+        })
+
+        // Add to segments for API response
+        if (path.length >= 2) {
+          segments.push({
+            riverName: `River in ${basin.name}`,
+            basinName: basin.name,
+            from: 'start',
+            to: 'end',
+            fromCoords: [path[0][1], path[0][0]], // [lat, lng]
+            toCoords: [path[path.length - 1][1], path[path.length - 1][0]],
+            status: basin.status,
+          })
         }
       }
     }
@@ -623,6 +775,6 @@ export async function getFloodedRiversGeoJSON(): Promise<{
       type: 'FeatureCollection',
       features: geoJsonFeatures,
     },
-    basinStatuses,
+    segments,
   }
 }
