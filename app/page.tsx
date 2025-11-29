@@ -137,7 +137,7 @@ export default function Home() {
                     icon={<Droplets size={20} />}
                 />
                 <StatCard
-                    label="Alert Level"
+                    label="At Alert"
                     value={summary.alert}
                     color="text-yellow-400"
                     borderColor="border-yellow-500/20"
