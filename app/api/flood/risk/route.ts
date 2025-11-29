@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkRisk } from '@/lib/flood-data'
 import type { RiskAssessment } from '@/types'
 
-// ISR: Revalidate every 30 minutes
-// Risk data depends on station data which is cached
-export const revalidate = 1800
+// Next.js 15: Using searchParams makes this route dynamic
+// Caching happens at the fetch level in flood-data.ts
 
 export async function GET(
   request: NextRequest

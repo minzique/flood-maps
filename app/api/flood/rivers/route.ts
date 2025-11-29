@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server'
 import { getRiversGeoJSON } from '@/lib/flood-data'
 import type { GeoJSONFeatureCollection } from '@/types'
 
-// Rivers don't change often, cache for 24 hours
-export const revalidate = 86400
+// Next.js 15: GET handlers are not cached by default
+// force-static + revalidate enables ISR caching
+export const dynamic = 'force-static'
+export const revalidate = 86400 // 24 hours
 
 export async function GET(): Promise<
   NextResponse<GeoJSONFeatureCollection | { error: string }>

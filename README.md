@@ -152,10 +152,13 @@ npm run start
 
 | Route | Cache Duration | Type |
 |-------|---------------|------|
-| `/api/flood` | 30 minutes | ISR (static) |
-| `/api/flood/basins` | 30 minutes | Dynamic |
-| `/api/flood/rivers` | 24 hours | ISR (static) |
-| `/api/flood/risk` | No cache | Dynamic |
+| `/api/flood` | 30 minutes | Static (ISR) |
+| `/api/flood/rivers` | 24 hours | Static (ISR) |
+| `/api/flood/basins` | Per-request | Dynamic (uses searchParams) |
+| `/api/flood/risk` | Per-request | Dynamic (uses searchParams) |
+
+Note: Next.js 15 requires `dynamic = 'force-static'` for route-level caching.
+Dynamic routes rely on fetch-level caching via `next: { revalidate }` options.
 
 ## Map Rendering
 

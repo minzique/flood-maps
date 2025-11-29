@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getFloodedRiversGeoJSON, type RiverSegment } from '@/lib/flood-data'
 import type { GeoJSONFeatureCollection } from '@/types'
 
-// Cache flooded rivers for 30 minutes (same as station data)
-export const revalidate = 1800
+// Next.js 15: Using searchParams makes this route dynamic
+// Caching happens at the fetch level in flood-data.ts
 
 interface FloodedRiversResponse {
   geojson: GeoJSONFeatureCollection

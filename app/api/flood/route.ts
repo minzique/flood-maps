@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server'
 import { getAllStations, getFloodingSummary } from '@/lib/flood-data'
 import type { Station, FloodSummary } from '@/types'
 
-// ISR: Revalidate every 30 minutes
-// On Vercel, this creates a cached Serverless Function
-export const revalidate = 1800
+// Next.js 15: GET handlers are not cached by default
+// force-static + revalidate enables ISR caching
+export const dynamic = 'force-static'
+export const revalidate = 1800 // 30 minutes
 
 export interface FloodAPIResponse {
   stations: Station[]
