@@ -30,6 +30,16 @@ export const ENDPOINTS = {
   buffers: `${BASE_URL}/Buffer_of_hydrostations/FeatureServer/0/query`,
 }
 
+// Status priority for determining worst status (lower = worse)
+export const STATUS_PRIORITY: Record<FloodStatus, number> = {
+  MAJOR_FLOOD: 0,
+  MINOR_FLOOD: 1,
+  ALERT: 2,
+  NORMAL: 3,
+  UNKNOWN: 4,
+  NO_DATA: 5,
+}
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -424,5 +434,195 @@ export async function getRiversGeoJSON(): Promise<GeoJSONFeatureCollection> {
   return {
     type: 'FeatureCollection',
     features: geoJsonFeatures,
+  }
+}
+
+/**
+ * Fetch basin polygons from ArcGIS
+ */
+export async function fetchBasinPolygons(): Promise<ArcGISFeature[]> {
+  const allFeatures: ArcGISFeature[] = []
+  let offset = 0
+  const batchSize = 100
+
+  while (true) {
+    const params = new URLSearchParams({
+      f: 'json',
+      where: '1=1',
+      outFields: 'Name',
+      returnGeometry: 'true',
+      outSR: '4326',
+      resultOffset: String(offset),
+      resultRecordCount: String(batchSize),
+    })
+
+    const res = await fetch(`${ENDPOINTS.basins}?${params}`, {
+      next: { revalidate: 86400 }, // Cache for 24 hours
+    })
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch basins: ${res.status}`)
+    }
+
+    const data: ArcGISResponse = await res.json()
+    const features = data.features ?? []
+
+    if (features.length === 0) break
+
+    allFeatures.push(...features)
+
+    if (features.length < batchSize) break
+    offset += batchSize
+  }
+
+  return allFeatures
+}
+
+/**
+ * Check if a point is inside a polygon using ray casting algorithm
+ */
+function pointInPolygon(point: [number, number], polygon: number[][]): boolean {
+  const [x, y] = point
+  let inside = false
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0], yi = polygon[i][1]
+    const xj = polygon[j][0], yj = polygon[j][1]
+
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+      inside = !inside
+    }
+  }
+
+  return inside
+}
+
+/**
+ * Check if any point of a line is inside a polygon
+ */
+function lineIntersectsPolygon(line: number[][], polygon: number[][]): boolean {
+  // Check if any point of the line is inside the polygon
+  for (const point of line) {
+    if (pointInPolygon([point[0], point[1]], polygon)) {
+      return true
+    }
+  }
+  return false
+}
+
+export interface BasinWithStatus {
+  name: string
+  status: FloodStatus
+  stationCount: number
+  floodingStations: string[]
+}
+
+interface BasinPolygon {
+  name: string
+  status: FloodStatus
+  rings: number[][][]
+}
+
+/**
+ * Get rivers within flooded basins as GeoJSON, colored by flood severity
+ * Only returns river segments that fall within basins with MAJOR_FLOOD or MINOR_FLOOD status
+ */
+export async function getFloodedRiversGeoJSON(): Promise<{
+  geojson: GeoJSONFeatureCollection
+  basinStatuses: Record<string, BasinWithStatus>
+}> {
+  // Fetch stations, basins, and rivers in parallel
+  const [stations, basinFeatures, riverFeatures] = await Promise.all([
+    getAllStations(),
+    fetchBasinPolygons(),
+    fetchRivers(),
+  ])
+
+  // Group stations by basin and find worst status per basin
+  const basinStatuses: Record<string, BasinWithStatus> = {}
+
+  for (const station of stations) {
+    const basin = station.basin.trim()
+    if (!basin) continue
+
+    if (!basinStatuses[basin]) {
+      basinStatuses[basin] = {
+        name: basin,
+        status: station.status,
+        stationCount: 1,
+        floodingStations: [],
+      }
+    } else {
+      basinStatuses[basin].stationCount++
+      // Update to worse status if applicable
+      if (STATUS_PRIORITY[station.status] < STATUS_PRIORITY[basinStatuses[basin].status]) {
+        basinStatuses[basin].status = station.status
+      }
+    }
+
+    // Track flooding stations
+    if (station.status === 'MAJOR_FLOOD' || station.status === 'MINOR_FLOOD') {
+      basinStatuses[basin].floodingStations.push(station.name)
+    }
+  }
+
+  // Get flooded basin polygons with their status
+  const floodedBasins: BasinPolygon[] = []
+
+  for (const f of basinFeatures) {
+    const name = (f.attributes?.Name as string)?.trim()
+    if (!name) continue
+
+    const basinInfo = basinStatuses[name]
+    if (!basinInfo || (basinInfo.status !== 'MAJOR_FLOOD' && basinInfo.status !== 'MINOR_FLOOD')) {
+      continue
+    }
+
+    const geom = f.geometry as { rings?: number[][][] }
+    const rings = geom?.rings ?? []
+    if (rings.length > 0) {
+      floodedBasins.push({
+        name,
+        status: basinInfo.status,
+        rings,
+      })
+    }
+  }
+
+  // Find rivers that intersect flooded basins
+  const geoJsonFeatures: GeoJSONFeature[] = []
+
+  for (const river of riverFeatures) {
+    const paths = river.geometry?.paths ?? []
+
+    for (const path of paths) {
+      // Check which flooded basin this river segment falls into
+      for (const basin of floodedBasins) {
+        for (const ring of basin.rings) {
+          if (lineIntersectsPolygon(path, ring)) {
+            geoJsonFeatures.push({
+              type: 'Feature',
+              properties: {
+                basin: basin.name,
+                status: basin.status,
+              },
+              geometry: {
+                type: 'LineString',
+                coordinates: path,
+              },
+            })
+            break // Found a match, no need to check other rings
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    geojson: {
+      type: 'FeatureCollection',
+      features: geoJsonFeatures,
+    },
+    basinStatuses,
   }
 }
