@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
+import { Figtree } from 'next/font/google'
 import './globals.css'
+
+const figtree = Figtree({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
     title: 'Sri Lanka Flood Monitor',
@@ -12,8 +15,8 @@ export default function RootLayout({
     children: React.ReactNode
 }) {
     return (
-        <html lang="en">
-            <body className="min-h-screen bg-slate-950 text-slate-100 antialiased">
+        <html lang="en" className="light" style={{ colorScheme: 'light' }}>
+            <body className={`${figtree.className} min-h-screen bg-background text-foreground antialiased selection:bg-primary/30`}>
                 {children}
             </body>
         </html>
