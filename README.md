@@ -18,34 +18,82 @@ flood-maps/
 ├── app/
 │   ├── api/
 │   │   └── flood/
-│   │       └── route.ts    # API endpoint for flood data
-│   ├── globals.css         # Global styles + Tailwind
-│   ├── layout.tsx          # Root layout (Server Component)
-│   └── page.tsx            # Home page (Client Component)
+│   │       ├── route.ts        # Main flood data + summary
+│   │       ├── rivers/
+│   │       │   └── route.ts    # River GeoJSON endpoint
+│   │       └── risk/
+│   │           └── route.ts    # Location risk assessment
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
 ├── components/
-│   └── Map.tsx             # Leaflet map component
+│   └── Map.tsx                 # Leaflet map with rivers
+├── lib/
+│   └── flood-data.ts           # Shared data fetching logic
 ├── types/
-│   └── index.ts            # Shared TypeScript types
-├── next.config.ts          # Next.js configuration
-├── tailwind.config.js      # Tailwind configuration
-└── tsconfig.json           # TypeScript configuration
+│   └── index.ts                # TypeScript types
+└── next.config.ts
 ```
 
-## Architecture
+## API Endpoints
 
-### Data Flow
+### GET `/api/flood`
+
+Returns stations and summary data.
+
+```typescript
+interface Response {
+  stations: Station[]
+  summary: {
+    total_stations: number
+    major_flood: number
+    minor_flood: number
+    alert: number
+    normal: number
+    flooding_stations: FloodingStation[]
+    affected_basins: string[]
+  }
+}
+```
+
+### GET `/api/flood/rivers`
+
+Returns all river lines as GeoJSON FeatureCollection (3000+ segments).
+Cached for 24 hours.
+
+### GET `/api/flood/risk?lat=6.9&lon=79.8&radius=15`
+
+Check flood risk for a specific location.
+
+| Param  | Type   | Default | Description           |
+|--------|--------|---------|-----------------------|
+| lat    | number | -       | Latitude (required)   |
+| lon    | number | -       | Longitude (required)  |
+| radius | number | 15      | Search radius in km   |
+
+```typescript
+interface Response {
+  lat: number
+  lon: number
+  risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN'
+  summary: string
+  nearby: StationWithDistance[]
+  advice: string
+}
+```
+
+## Data Flow
 
 1. Client loads `page.tsx` (Client Component)
-2. SWR fetches data from `/api/flood` with 60-second refresh
-3. API route fetches from ArcGIS FeatureServer endpoints:
-   - Hydrostations (station metadata, revalidated every 5 min)
-   - Gauges (water level readings, revalidated every 1 min)
-4. Data is deduplicated, classified, and returned as JSON
-5. Map and station list render with real-time status
+2. SWR fetches `/api/flood` with 60-second auto-refresh
+3. Map component fetches `/api/flood/rivers` separately (cached 24h)
+4. API routes use shared `lib/flood-data.ts` functions
+5. Data fetched from Sri Lanka Irrigation Dept ArcGIS servers:
+   - Hydrostations (station metadata)
+   - Gauges (water level readings)
+   - Rivers (polyline geometry)
 
-### API Route (`/api/flood`)
-
-Returns an array of `Station` objects with flood status classification:
+## Flood Status Classification
 
 | Status       | Condition                        |
 |--------------|----------------------------------|
@@ -56,31 +104,14 @@ Returns an array of `Station` objects with flood status classification:
 | UNKNOWN      | Missing threshold data           |
 | NO_DATA      | No recent readings               |
 
-### Route Segment Configuration
+## Risk Level Mapping
 
-```typescript
-export const dynamic = 'force-dynamic'
-export const revalidate = 60
-```
-
-## Types
-
-Shared types are defined in `types/index.ts`:
-
-```typescript
-type FloodStatus = 'MAJOR_FLOOD' | 'MINOR_FLOOD' | 'ALERT' | 'NORMAL' | 'UNKNOWN' | 'NO_DATA'
-
-interface Station {
-  name: string
-  basin: string
-  lat: number | null
-  lon: number | null
-  status: FloodStatus
-  water_level: number | null
-  thresholds: StationThresholds | null
-  updated: string | null
-}
-```
+| Worst Nearby Status | Risk Level |
+|---------------------|------------|
+| MAJOR_FLOOD         | HIGH       |
+| MINOR_FLOOD         | HIGH       |
+| ALERT               | MEDIUM     |
+| NORMAL              | LOW        |
 
 ## Development
 
@@ -98,12 +129,22 @@ npm run build
 npm run start
 ```
 
+## Environment
+
+No environment variables required. All data is fetched from public ArcGIS endpoints.
+
 ## Known Issues
 
 - **React Strict Mode disabled**: Leaflet's MapContainer is incompatible with React 19's strict mode double-effect invocation. See `next.config.ts`.
 
 ## Data Source
 
-Data is fetched from Sri Lanka's ArcGIS FeatureServer:
-- Hydrostations: Station metadata and locations
-- Gauges: Real-time water level readings (last 24 hours)
+Data is fetched from Sri Lanka Irrigation Department's public ArcGIS Feature Services:
+
+- **gauges_2_view**: Live water levels + thresholds
+- **hydrostations**: Station metadata + coordinates
+- **rivers**: River polylines (3379 segments)
+- **river_basins**: Basin polygons (not currently used)
+- **Buffer_of_hydrostations**: Buffer zones (not currently used)
+
+**Disclaimer**: This is an unofficial tool. Always follow official government alerts for emergency response.

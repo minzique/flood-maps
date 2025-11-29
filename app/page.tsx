@@ -7,9 +7,10 @@ import {
   Droplets,
   RefreshCw,
   List,
+  MapPin,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import type { Station, FloodStatus } from '@/types'
+import type { Station, FloodStatus, FloodSummary } from '@/types'
 import { STATUS_PRIORITY } from '@/types'
 
 // Dynamically import Map to avoid SSR issues with Leaflet
@@ -24,21 +25,25 @@ const Map = dynamic(() => import('@/components/Map'), {
 
 type FilterType = 'ALL' | 'FLOOD' | 'ALERT'
 
-const fetcher = (url: string): Promise<Station[]> =>
+interface FloodAPIResponse {
+  stations: Station[]
+  summary: FloodSummary
+}
+
+const fetcher = (url: string): Promise<FloodAPIResponse> =>
   fetch(url).then((res) => {
     if (!res.ok) throw new Error('Failed to fetch')
     return res.json()
   })
 
 export default function Home() {
-  const {
-    data: stations,
-    error,
-    isLoading,
-    mutate,
-  } = useSWR<Station[]>('/api/flood', fetcher, {
-    refreshInterval: 60000,
-  })
+  const { data, error, isLoading, mutate } = useSWR<FloodAPIResponse>(
+    '/api/flood',
+    fetcher,
+    {
+      refreshInterval: 60000,
+    }
+  )
 
   const [filter, setFilter] = useState<FilterType>('ALL')
 
@@ -50,14 +55,11 @@ export default function Home() {
     )
   }
 
-  if (isLoading || !stations) {
+  if (isLoading || !data) {
     return <div className="p-8 text-slate-400">Loading flood data...</div>
   }
 
-  // Calculate stats
-  const major = stations.filter((s) => s.status === 'MAJOR_FLOOD').length
-  const minor = stations.filter((s) => s.status === 'MINOR_FLOOD').length
-  const alert = stations.filter((s) => s.status === 'ALERT').length
+  const { stations, summary } = data
 
   // Filter stations
   const filteredStations = stations.filter((s) => {
@@ -77,13 +79,13 @@ export default function Home() {
   return (
     <main className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
       {/* Header */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
             Sri Lanka Flood Monitor
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            Real-time hydro-meteorological data
+            Real-time hydro-meteorological data from Irrigation Department
           </p>
         </div>
         <button
@@ -95,40 +97,58 @@ export default function Home() {
         </button>
       </header>
 
+      {/* Affected Basins Alert */}
+      {summary.affected_basins.length > 0 && (
+        <div className="mb-6 p-4 bg-red-950/30 border border-red-900/50 rounded-xl">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="text-red-400 mt-0.5 flex-shrink-0" size={20} />
+            <div>
+              <p className="text-red-400 font-medium text-sm">
+                Active flooding in {summary.affected_basins.length} river basin
+                {summary.affected_basins.length > 1 ? 's' : ''}
+              </p>
+              <p className="text-red-300/80 text-sm mt-1">
+                {summary.affected_basins.join(', ')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard
           label="Major Flood"
-          value={major}
+          value={summary.major_flood}
           color="text-red-500"
           borderColor="border-red-500/20"
           icon={<AlertTriangle size={20} />}
         />
         <StatCard
           label="Minor Flood"
-          value={minor}
+          value={summary.minor_flood}
           color="text-orange-500"
           borderColor="border-orange-500/20"
           icon={<Droplets size={20} />}
         />
         <StatCard
           label="Alert Level"
-          value={alert}
+          value={summary.alert}
           color="text-yellow-500"
           borderColor="border-yellow-500/20"
           icon={<AlertTriangle size={20} />}
         />
         <StatCard
           label="Total Stations"
-          value={stations.length}
+          value={summary.total_stations}
           color="text-blue-400"
           borderColor="border-blue-500/20"
-          icon={<List size={20} />}
+          icon={<MapPin size={20} />}
         />
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[600px]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
         {/* Map Section */}
         <div className="lg:col-span-2 bg-slate-900/50 rounded-2xl border border-slate-800 p-1 h-full relative">
           <Map stations={filteredStations} />
@@ -151,6 +171,18 @@ export default function Home() {
               label="Alerts"
             />
           </div>
+
+          {/* Legend */}
+          <div className="absolute bottom-4 right-4 z-[400] bg-slate-900/90 backdrop-blur p-3 rounded-lg border border-slate-700 shadow-xl">
+            <p className="text-xs font-medium text-slate-400 mb-2">Legend</p>
+            <div className="space-y-1.5">
+              <LegendItem color="#ef4444" label="Major Flood" />
+              <LegendItem color="#f97316" label="Minor Flood" />
+              <LegendItem color="#eab308" label="Alert" />
+              <LegendItem color="#22c55e" label="Normal" />
+              <LegendItem color="#3b82f6" label="Rivers" isLine />
+            </div>
+          </div>
         </div>
 
         {/* List Section */}
@@ -159,6 +191,9 @@ export default function Home() {
             <h2 className="font-semibold flex items-center gap-2">
               <List size={18} />
               Station Status
+              <span className="text-slate-500 font-normal text-sm">
+                ({sortedStations.length})
+              </span>
             </h2>
           </div>
           <div className="overflow-y-auto flex-1 p-2 space-y-2">
@@ -174,6 +209,14 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="mt-6 text-center text-xs text-slate-600">
+        <p>
+          Data source: Sri Lanka Irrigation Department (unofficial).
+          Follow official government alerts for emergency response.
+        </p>
+      </footer>
     </main>
   )
 }
@@ -223,6 +266,31 @@ function FilterButton({ active, onClick, label }: FilterButtonProps) {
   )
 }
 
+interface LegendItemProps {
+  color: string
+  label: string
+  isLine?: boolean
+}
+
+function LegendItem({ color, label, isLine }: LegendItemProps) {
+  return (
+    <div className="flex items-center gap-2">
+      {isLine ? (
+        <div
+          className="w-4 h-0.5 rounded"
+          style={{ backgroundColor: color }}
+        />
+      ) : (
+        <div
+          className="w-3 h-3 rounded-full border-2 border-white/50"
+          style={{ backgroundColor: color }}
+        />
+      )}
+      <span className="text-xs text-slate-300">{label}</span>
+    </div>
+  )
+}
+
 const STATUS_STYLE_MAP: Record<FloodStatus, string> = {
   MAJOR_FLOOD: 'text-red-400 border-red-900/30 bg-red-950/10',
   MINOR_FLOOD: 'text-orange-400 border-orange-900/30 bg-orange-950/10',
@@ -260,6 +328,11 @@ function StationCard({ station }: StationCardProps) {
           <span className="text-slate-200 font-mono">
             {station.water_level?.toFixed(2) ?? '-'}m
           </span>
+          {station.thresholds && station.water_level && (
+            <span className="text-slate-500 ml-1">
+              / {station.thresholds.major}m
+            </span>
+          )}
         </div>
         <div className="text-[10px] text-slate-600">
           {station.updated
