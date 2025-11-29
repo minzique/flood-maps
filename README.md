@@ -19,15 +19,23 @@ flood-maps/
 │   ├── api/
 │   │   └── flood/
 │   │       ├── route.ts        # Main flood data + summary
+│   │       ├── basins/
+│   │       │   └── route.ts    # Flooded rivers GeoJSON
 │   │       ├── rivers/
-│   │       │   └── route.ts    # River GeoJSON endpoint
+│   │       │   └── route.ts    # All rivers GeoJSON
 │   │       └── risk/
 │   │           └── route.ts    # Location risk assessment
 │   ├── globals.css
 │   ├── layout.tsx
 │   └── page.tsx
 ├── components/
-│   └── Map.tsx                 # Leaflet map with rivers
+│   └── Map.tsx                 # Leaflet map with zoom-based rendering
+├── data/
+│   ├── rivers.json             # River definitions with locations
+│   ├── locations.json          # Location coordinates
+│   ├── gauging_stations.json   # Station metadata + thresholds
+│   ├── station_rivers.json     # River paths through stations
+│   └── main_rivers.json        # OSM river data (backup)
 ├── lib/
 │   └── flood-data.ts           # Shared data fetching logic
 ├── types/
@@ -55,6 +63,17 @@ interface Response {
   }
 }
 ```
+
+### GET `/api/flood/basins`
+
+Returns flooded river segments as GeoJSON. **ISR cached for 30 minutes.**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| simplified | boolean | false | If true, returns station-based river paths |
+
+- `simplified=false`: Full ArcGIS river segments within flooded basins
+- `simplified=true`: Simplified paths connecting gauging stations
 
 ### GET `/api/flood/rivers`
 
@@ -134,8 +153,20 @@ npm run start
 | Route | Cache Duration | Type |
 |-------|---------------|------|
 | `/api/flood` | 30 minutes | ISR (static) |
+| `/api/flood/basins` | 30 minutes | Dynamic |
 | `/api/flood/rivers` | 24 hours | ISR (static) |
 | `/api/flood/risk` | No cache | Dynamic |
+
+## Map Rendering
+
+The map uses zoom-based rendering for performance:
+
+| Zoom Level | River Display | Stations Shown |
+|------------|---------------|----------------|
+| < 9 | Simplified paths | Flood-affected only |
+| >= 9 | Full ArcGIS rivers | All stations |
+
+Detailed rivers are lazy-loaded when the user zooms in.
 
 On Vercel, ISR routes are cached at the edge and revalidated in the background after expiration. This minimizes requests to the upstream ArcGIS servers.
 
