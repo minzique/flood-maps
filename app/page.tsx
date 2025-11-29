@@ -272,7 +272,10 @@ function StatCard({ label, value, color, borderColor, icon }: StatCardProps) {
                 <p className="text-muted-foreground text-[10px] md:text-xs uppercase tracking-wider font-semibold mb-0.5 md:mb-1">
                     {label}
                 </p>
-                <p className={`text-xl md:text-3xl font-bold ${color} tracking-tight`}>{value}</p>
+                <p className={`text-xl md:text-3xl font-bold ${color} tracking-tight`}>
+                    {value}
+                    <span className="text-xs md:text-sm font-medium text-muted-foreground ml-1">stations</span>
+                </p>
             </div>
             <div className={`p-2 md:p-3 rounded-lg md:rounded-xl bg-muted/40 ${color}`}>{icon}</div>
         </div>
