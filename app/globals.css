@@ -2,25 +2,102 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Force light mode - override any dark mode preferences */
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 15, 23, 42;
-  --background-end-rgb: 15, 23, 42;
+    color-scheme: light only !important;
 }
 
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+@media (prefers-color-scheme: dark) {
+    :root {
+        color-scheme: light only !important;
+    }
+}
+
+@layer base {
+    :root {
+        /* Ocean/Turquoise Base Colors (HSL) */
+        --off-black: 180 48% 6%;
+        --inky-blue: 191 49% 15%;
+        --peacock: 189 33% 27%;
+        --true-turquoise: 189 64% 35%;
+        --plex-blue: 187 72% 47%;
+        --sky: 180 37% 80%;
+        --paper-white: 40 50% 98%;
+        --ecru: 53 25% 86%;
+        --apricot: 30 100% 83%;
+        --terra-cotta: 13 56% 43%;
+        --boysenberry: 347 37% 43%;
+
+        /* Semantic Colors */
+        --background: var(--paper-white);
+        --foreground: var(--off-black);
+
+        --card: 0 0% 100%;
+        --card-foreground: var(--off-black);
+
+        --popover: 0 0% 100%;
+        --popover-foreground: var(--off-black);
+
+        --primary: var(--true-turquoise);
+        --primary-light: var(--plex-blue);
+        --primary-lighter: var(--sky);
+        --primary-foreground: var(--paper-white);
+
+        --secondary: var(--off-black);
+        --secondary-light: var(--inky-blue);
+        --secondary-foreground: var(--paper-white);
+
+        --muted: var(--ecru);
+        --muted-foreground: var(--peacock);
+
+        --accent: var(--boysenberry);
+        --accent-light: var(--apricot);
+        --accent-foreground: var(--off-black);
+
+        --destructive: var(--terra-cotta);
+        --destructive-foreground: var(--paper-white);
+
+        --border: var(--ecru);
+        --input: var(--ecru);
+        --ring: var(--true-turquoise);
+
+        --radius: 0.75rem;
+
+        /* Category Colors */
+        --hnw: 142 71% 45%;
+        --lhi: var(--true-turquoise);
+        --pro: var(--apricot);
+        --std: var(--ecru);
+
+        /* Success */
+        --success: 142 71% 45%;
+        --success-foreground: 0 0% 100%;
+    }
+
+    /* Dark mode disabled - light mode only */
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+@layer components {
+
+    /* Glass Card Effect */
+    .glass-card {
+        @apply bg-white/70 backdrop-blur-2xl border-white/80 shadow-xl;
+    }
 }
 
 /* Leaflet map z-index fix */
 .leaflet-container {
-  width: 100%;
-  height: 100%;
-  z-index: 10;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
 }
