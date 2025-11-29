@@ -223,21 +223,32 @@ export default function Home() {
             </div>
 
             {/* Footer */}
-            <footer className="mt-8 md:mt-12 text-center text-sm text-muted-foreground pb-6 md:pb-8">
-                <p className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-4">
-                    <span className="text-xs md:text-sm">Data source:</span>
-                    <a
-                        href="https://www.arcgis.com/apps/dashboards/2cffe83c9ff5497d97375498bdf3ff38"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:text-primary-light transition-colors hover:underline underline-offset-4 text-xs md:text-sm"
-                    >
-                        Sri Lanka Irrigation Department (ArcGIS Dashboard)
-                    </a>
-                </p>
-                <p className="mt-2 text-[10px] md:text-xs text-muted-foreground/70 px-4">
-                    Unofficial mirror. Follow official government alerts for emergency response.
-                </p>
+            <footer className="mt-8 md:mt-12 text-center text-sm text-muted-foreground pb-6 md:pb-8 border-t border-border/30 pt-6">
+                <div className="flex flex-col gap-3 px-4">
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2">
+                        <span className="text-xs md:text-sm">Data:</span>
+                        <a
+                            href="https://www.arcgis.com/apps/dashboards/2cffe83c9ff5497d97375498bdf3ff38"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:text-primary-light transition-colors hover:underline underline-offset-4 text-xs md:text-sm"
+                        >
+                            Sri Lanka Irrigation Department
+                        </a>
+                        <span className="hidden md:inline text-muted-foreground/50">|</span>
+                        <a
+                            href="https://github.com/minzique/flood-maps"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:text-primary-light transition-colors hover:underline underline-offset-4 text-xs md:text-sm"
+                        >
+                            GitHub
+                        </a>
+                    </div>
+                    <p className="text-[10px] md:text-xs text-muted-foreground/70">
+                        Unofficial tool. Follow official government alerts for emergency response.
+                    </p>
+                </div>
             </footer>
         </main>
     )
