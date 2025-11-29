@@ -131,7 +131,7 @@ export async function fetchStations(): Promise<ArcGISFeature[]> {
   })
 
   const res = await fetch(`${ENDPOINTS.stations}?${params}`, {
-    next: { revalidate: 300 },
+    next: { revalidate: 1800 }, // 30 minutes
   })
 
   if (!res.ok) {
@@ -158,7 +158,7 @@ export async function fetchLatestReadings(): Promise<
   })
 
   const res = await fetch(`${ENDPOINTS.gauges}?${params}`, {
-    next: { revalidate: 60 },
+    next: { revalidate: 1800 }, // 30 minutes
   })
 
   if (!res.ok) {

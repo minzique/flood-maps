@@ -39,7 +39,7 @@ flood-maps/
 
 ### GET `/api/flood`
 
-Returns stations and summary data.
+Returns stations and summary data. **ISR cached for 30 minutes.**
 
 ```typescript
 interface Response {
@@ -59,11 +59,11 @@ interface Response {
 ### GET `/api/flood/rivers`
 
 Returns all river lines as GeoJSON FeatureCollection (3000+ segments).
-Cached for 24 hours.
+**ISR cached for 24 hours.**
 
 ### GET `/api/flood/risk?lat=6.9&lon=79.8&radius=15`
 
-Check flood risk for a specific location.
+Check flood risk for a specific location. **Dynamic route (not cached).**
 
 | Param  | Type   | Default | Description           |
 |--------|--------|---------|-----------------------|
@@ -128,6 +128,16 @@ npm run build
 # Start production server
 npm run start
 ```
+
+## Caching Strategy (Vercel ISR)
+
+| Route | Cache Duration | Type |
+|-------|---------------|------|
+| `/api/flood` | 30 minutes | ISR (static) |
+| `/api/flood/rivers` | 24 hours | ISR (static) |
+| `/api/flood/risk` | No cache | Dynamic |
+
+On Vercel, ISR routes are cached at the edge and revalidated in the background after expiration. This minimizes requests to the upstream ArcGIS servers.
 
 ## Environment
 

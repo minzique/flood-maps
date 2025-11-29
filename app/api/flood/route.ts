@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server'
 import { getAllStations, getFloodingSummary } from '@/lib/flood-data'
 import type { Station, FloodSummary } from '@/types'
 
-// Route Segment Config for Next.js 15
-export const dynamic = 'force-dynamic'
-export const revalidate = 60
+// ISR: Revalidate every 30 minutes
+// On Vercel, this creates a cached Serverless Function
+export const revalidate = 1800
 
 export interface FloodAPIResponse {
   stations: Station[]

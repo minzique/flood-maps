@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkRisk } from '@/lib/flood-data'
 import type { RiskAssessment } from '@/types'
 
-export const dynamic = 'force-dynamic'
+// ISR: Revalidate every 30 minutes
+// Risk data depends on station data which is cached
+export const revalidate = 1800
 
 export async function GET(
   request: NextRequest
