@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sri Lanka Flood Status - Live</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+            color: #fff;
+        }
+        .timestamp { color: #64748b; margin-bottom: 20px; }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        .stat {
+            background: #1e293b;
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .stat-value { font-size: 2rem; font-weight: bold; }
+        .stat-label { font-size: 0.85rem; color: #94a3b8; margin-top: 4px; }
+        .major .stat-value { color: #ef4444; }
+        .minor .stat-value { color: #f97316; }
+        .alert .stat-value { color: #eab308; }
+        .normal .stat-value { color: #22c55e; }
+
+        .section { margin-bottom: 30px; }
+        .section-title {
+            font-size: 1.1rem;
+            color: #94a3b8;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .flooding-list { display: flex; flex-direction: column; gap: 10px; }
+        .flood-card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 16px;
+            border-left: 4px solid;
+        }
+        .flood-card.major { border-color: #ef4444; }
+        .flood-card.minor { border-color: #f97316; }
+        .flood-card .name { font-weight: 600; font-size: 1.1rem; }
+        .flood-card .details { color: #94a3b8; margin-top: 6px; font-size: 0.9rem; }
+        .flood-card .status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .flood-card .status.major { background: #450a0a; color: #fca5a5; }
+        .flood-card .status.minor { background: #431407; color: #fdba74; }
+
+        .basin-grid { display: flex; flex-direction: column; gap: 12px; }
+        .basin {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .basin-header {
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .basin-stations {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 8px;
+        }
+        .station {
+            background: #0f172a;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .station-status {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .station-status.major { background: #450a0a; color: #fca5a5; }
+        .station-status.minor { background: #431407; color: #fdba74; }
+        .station-status.alert { background: #422006; color: #fde047; }
+        .station-status.normal { background: #052e16; color: #86efac; }
+        .station-status.nodata { background: #1e293b; color: #64748b; }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #334155;
+            color: #64748b;
+            font-size: 0.85rem;
+        }
+        .warning {
+            background: #431407;
+            color: #fdba74;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌊 Sri Lanka Flood Status</h1>
+    <p class="timestamp">Live data as of 2025-11-29 17:06:50</p>
+
+    <div class="warning">
+        ⚠️ UNOFFICIAL - For guidance only. Always follow official government alerts.
+    </div>
+
+    <div class="summary">
+        <div class="stat major">
+            <div class="stat-value">8</div>
+            <div class="stat-label">Major Flood</div>
+        </div>
+        <div class="stat minor">
+            <div class="stat-value">5</div>
+            <div class="stat-label">Minor Flood</div>
+        </div>
+        <div class="stat alert">
+            <div class="stat-value">4</div>
+            <div class="stat-label">Alert</div>
+        </div>
+        <div class="stat normal">
+            <div class="stat-value">16</div>
+            <div class="stat-label">Normal</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">⚠️ Active Flooding</div>
+        <div class="flooding-list">
+
+            <div class="flood-card major">
+                <div class="name">Glencourse<span class="status major">MAJOR</span></div>
+                <div class="details">
+                    Kelani Ganga &bull;
+                    Water: 20.62m (threshold: 19m) &bull;
+                    Updated: 2025-11-29 10:31
+                </div>
+            </div>
+
+            <div class="flood-card major">
+                <div class="name">Badalgama<span class="status major">MAJOR</span></div>
+                <div class="details">
+                    Maha Oya &bull;
+                    Water: 13.15m (threshold: 9.6m) &bull;
+                    Updated: 2025-11-29 10:46
+                </div>
+            </div>
+
+            <div class="flood-card major">
+                <div class="name">Giriulla<span class="status major">MAJOR</span></div>
+                <div class="details">
+                    Maha Oya &bull;
+                    Water: 11.2m (threshold: 7.5m) &bull;
+                    Updated: 2025-11-29 10:35
+                </div>
+            </div>
+
+            <div class="flood-card major">
+                <div class="name">Hanwella<span class="status major">MAJOR</span></div>
+                <div class="details">
+                    Kelani Ganga &bull;
+                    Water: 10.83m (threshold: 10m) &bull;
+                    Updated: 2025-11-29 10:35
+                </div>
+            </div>
+
+            <div class="flood-card major">
+                <div class="name">Thanthirimale<span class="status major">MAJOR</span></div>
+                <div class="details">
+                    Malwathu Oya &bull;
+                    Water: 10.3m (threshold: 7.8m) &bull;
+                    Updated: 2025-11-28 09:30
+                </div>
+            </div>
+
+            <div class="flood-card major">
+                <div class="name">Moragaswewa<span class="status major">MAJOR</span></div>
+                <div class="details">
+                    Deduru Oya &bull;
+                    Water: 8.33m (threshold: 7m) &bull;
+                    Updated: 2025-11-28 00:34
+                </div>
+            </div>
+
+            <div class="flood-card major">
+                <div class="name">Kalawellawa (Millakanda)<span class="status major">MAJOR</span></div>
+                <div class="details">
+                    Kalu Ganga &bull;
+                    Water: 8.14m (threshold: 8m) &bull;
+                    Updated: 2025-11-29 11:32
+                </div>
+            </div>
+
+            <div class="flood-card major">
+                <div class="name">Dunamale<span class="status major">MAJOR</span></div>
+                <div class="details">
+                    Aththanagalu Oya &bull;
+                    Water: 6.43m (threshold: 5.5m) &bull;
+                    Updated: 2025-11-29 11:32
+                </div>
+            </div>
+
+            <div class="flood-card minor">
+                <div class="name">Rathnapura<span class="status minor">MINOR</span></div>
+                <div class="details">
+                    Kalu Ganga &bull;
+                    Water: 8.45m (threshold: 9.5m) &bull;
+                    Updated: 2025-11-29 10:36
+                </div>
+            </div>
+
+            <div class="flood-card minor">
+                <div class="name">Horowpothana<span class="status minor">MINOR</span></div>
+                <div class="details">
+                    Yan Oya &bull;
+                    Water: 7.71m (threshold: 10.5m) &bull;
+                    Updated: 2025-11-29 10:32
+                </div>
+            </div>
+
+            <div class="flood-card minor">
+                <div class="name">Nagalagam Street<span class="status minor">MINOR</span></div>
+                <div class="details">
+                    Kelani Ganga &bull;
+                    Water: 6.25m (threshold: 7m) &bull;
+                    Updated: 2025-11-29 10:35
+                </div>
+            </div>
+
+            <div class="flood-card minor">
+                <div class="name">Yaka Wewa<span class="status minor">MINOR</span></div>
+                <div class="details">
+                    Ma Oya &bull;
+                    Water: 5.73m (threshold: 6m) &bull;
+                    Updated: 2025-11-27 21:37
+                </div>
+            </div>
+
+            <div class="flood-card minor">
+                <div class="name">Kithulgala<span class="status minor">MINOR</span></div>
+                <div class="details">
+                    Kelani Ganga &bull;
+                    Water: 4.15m (threshold: 6m) &bull;
+                    Updated: 2025-11-28 14:37
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">All River Basins</div>
+        <div class="basin-grid">
+
+            <div class="basin">
+                <div class="basin-header">🔴 Kelani Ganga</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Hanwella</span>
+                        <span class="station-status major">MAJOR 10.8m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Glencourse</span>
+                        <span class="station-status major">MAJOR 20.6m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Nagalagam Street</span>
+                        <span class="station-status minor">MINOR 6.2m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Kithulgala</span>
+                        <span class="station-status minor">MINOR 4.2m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Norwood</span>
+                        <span class="station-status alert">ALERT 1.7m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Holombuwa</span>
+                        <span class="station-status normal">OK 2.7m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Deraniyagala</span>
+                        <span class="station-status normal">OK 2.3m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🔴 Kalu Ganga</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Kalawellawa (Millakanda)</span>
+                        <span class="station-status major">MAJOR 8.1m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Rathnapura</span>
+                        <span class="station-status minor">MINOR 8.4m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Putupaula</span>
+                        <span class="station-status alert">ALERT 3.9m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Magura</span>
+                        <span class="station-status alert">ALERT 4.5m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Ellagawa</span>
+                        <span class="station-status normal">OK 9.2m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🔴 Malwathu Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Thanthirimale</span>
+                        <span class="station-status major">MAJOR 10.3m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🔴 Deduru Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Moragaswewa</span>
+                        <span class="station-status major">MAJOR 8.3m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🔴 Maha Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Badalgama</span>
+                        <span class="station-status major">MAJOR 13.2m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Giriulla</span>
+                        <span class="station-status major">MAJOR 11.2m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🔴 Aththanagalu Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Dunamale</span>
+                        <span class="station-status major">MAJOR 6.4m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟠 Yan Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Horowpothana</span>
+                        <span class="station-status minor">MINOR 7.7m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟠 Ma Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Yaka Wewa</span>
+                        <span class="station-status minor">MINOR 5.7m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟡 Nilwala Ganga</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Thalgahagoda</span>
+                        <span class="station-status alert">ALERT 1.6m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Panadugama</span>
+                        <span class="station-status normal">OK 4.4m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Pitabeddara</span>
+                        <span class="station-status normal">OK 1.5m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Urawa</span>
+                        <span class="station-status normal">OK 1.0m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟢 Gin Ganga</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Baddegama</span>
+                        <span class="station-status normal">OK 3.2m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Thawalama</span>
+                        <span class="station-status normal">OK 2.5m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟢 Walawe Ganga</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Moraketiya</span>
+                        <span class="station-status normal">OK 2.2m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟢 Kirindi Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Thanamalwila</span>
+                        <span class="station-status normal">OK 2.1m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Wellawaya</span>
+                        <span class="station-status normal">OK 1.4m</span>
+                    </div>
+
+                    <div class="station">
+                        <span>Kuda Oya</span>
+                        <span class="station-status normal">OK 2.4m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟢 Menik Ganga</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Katharagama</span>
+                        <span class="station-status normal">OK 2.4m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟢 Kumbukkan Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Nakkala</span>
+                        <span class="station-status normal">OK 2.0m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟢 Heda Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Siyambalanduwa</span>
+                        <span class="station-status normal">OK 1.6m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟢 Gal Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Ampara</span>
+                        <span class="station-status nodata">— </span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟢 Maduru Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Padiyathalawa</span>
+                        <span class="station-status normal">OK 1.8m</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟢 Mahaweli Ganga</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Manampitiya</span>
+                        <span class="station-status nodata">— </span>
+                    </div>
+
+                    <div class="station">
+                        <span>Weraganthota                            </span>
+                        <span class="station-status nodata">— </span>
+                    </div>
+
+                    <div class="station">
+                        <span>Peradeniya</span>
+                        <span class="station-status nodata">— </span>
+                    </div>
+
+                    <div class="station">
+                        <span>Nawalapitiya</span>
+                        <span class="station-status nodata">— </span>
+                    </div>
+
+                    <div class="station">
+                        <span>Thaldena</span>
+                        <span class="station-status nodata">— </span>
+                    </div>
+
+                    <div class="station">
+                        <span>Calidonia</span>
+                        <span class="station-status nodata">— </span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟢 Mee Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Galgamuwa</span>
+                        <span class="station-status nodata">— </span>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="basin">
+                <div class="basin-header">🟢 Kala Oya</div>
+                <div class="basin-stations">
+
+                    <div class="station">
+                        <span>Thambuththegama</span>
+                        <span class="station-status nodata">— </span>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Data source: Sri Lanka Irrigation Department (via ArcGIS Feature Services)</p>
+        <p>This is an unofficial monitoring tool. For official flood warnings, contact the Disaster Management Centre.</p>
+    </div>
+</body>
+</html>
